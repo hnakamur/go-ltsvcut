@@ -1,3 +1,3 @@
-module github.com/hnakamur/ltsvcut
+module github.com/hnakamur/go-ltsvcut
 
-go 1.21.5
+go 1.21.6
