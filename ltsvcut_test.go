@@ -7,40 +7,44 @@ import (
 	"os"
 	"testing"
 
-	"github.com/hnakamur/ltsvcut"
+	"github.com/hnakamur/go-ltsvcut"
 )
 
-func TestCutter(t *testing.T) {
-	input := []byte("time:2024-01-30T15:23:46.123Z\tua:name with escaped \\ttab, \\\\backslash, and \\nnewline")
-	var cutter ltsvcut.Cutter
-	cutter.SetLine(input)
-	if got, want := cutter.NextLabel(), []byte("time"); !bytes.Equal(got, want) {
+func TestCutLabelAndCutRawValueAndSkipNFields(t *testing.T) {
+	input := []byte("time:2024-01-30T15:23:46.123Z\treq:GET / HTTP/1.1\tstatus:200\tua:name with escaped \\ttab, \\\\backslash, and \\nnewline")
+	label, rest := ltsvcut.CutLabel(input)
+	if got, want := label, []byte("time"); !bytes.Equal(got, want) {
 		t.Errorf("first label mismatched, got=%s, want=%s", string(got), string(want))
 	}
-	if got, want := cutter.UnescapedValue(), []byte("2024-01-30T15:23:46.123Z"); !bytes.Equal(got, want) {
+	rawValue, rest := ltsvcut.CutRawValue(rest)
+	if got, want := ltsvcut.UnescapeValue(rawValue), []byte("2024-01-30T15:23:46.123Z"); !bytes.Equal(got, want) {
 		t.Errorf("first value mismatched, got=%s, want=%s", string(got), string(want))
 	}
-	if got, want := cutter.NextLabel(), []byte("ua"); !bytes.Equal(got, want) {
+	rest = ltsvcut.SkipNFields(rest, 2)
+	label, rest = ltsvcut.CutLabel(rest)
+	if got, want := label, []byte("ua"); !bytes.Equal(got, want) {
 		t.Errorf("second label mismatched, got=%s, want=%s", string(got), string(want))
 	}
-	if got, want := cutter.UnescapedValue(), []byte("name with escaped \ttab, \\backslash, and \nnewline"); !bytes.Equal(got, want) {
+	rawValue, rest = ltsvcut.CutRawValue(rest)
+	if got, want := ltsvcut.UnescapeValue(rawValue), []byte("name with escaped \ttab, \\backslash, and \nnewline"); !bytes.Equal(got, want) {
 		t.Errorf("second value mismatched, got=%s, want=%s", string(got), string(want))
 	}
 }
 
-func ExampleCutter() {
+func Example() {
 	input := []byte("time:2024-01-30T15:23:46.123Z\tua:name with escaped\\ttab,\\\\backslash, and\\nnewline\n" +
 		"time:2024-01-30T15:23:46.456Z\tua:my agent\n")
 	r := bufio.NewScanner(bytes.NewReader(input))
-	var cutter ltsvcut.Cutter
 	for r.Scan() {
-		cutter.SetLine(r.Bytes())
+		rest := r.Bytes()
 		for {
-			label := cutter.NextLabel()
+			var label, rawValue []byte
+			label, rest = ltsvcut.CutLabel(rest)
 			if label == nil {
 				break
 			}
-			value := cutter.UnescapedValue()
+			rawValue, rest = ltsvcut.CutRawValue(rest)
+			value := ltsvcut.UnescapeValue(rawValue)
 			fmt.Printf("label=%s, value=%s\n", label, value)
 		}
 		fmt.Printf("---\n")

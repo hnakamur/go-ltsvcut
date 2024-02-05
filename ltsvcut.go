@@ -7,53 +7,46 @@ import (
 	"fmt"
 )
 
-// Cutter is a struct which holds a line and the current position.
-// It can be reused for another line.
-type Cutter struct {
-	line []byte
-	pos  int
-}
+const labelSeparator = ':'
+const fieldSeparator = '\t'
 
-// SetLine set the current line and reset the position to 0.
-func (c *Cutter) SetLine(line []byte) {
-	c.line = line
-	c.pos = 0
-}
-
-// NextLabel returns the next label or nil if no label found after the current
-// position.
-func (c *Cutter) NextLabel() []byte {
-	i := bytes.IndexByte(c.line[c.pos:], ':')
-	if i == -1 {
-		return nil
+// SkipNFields skips n fields and returns the rest of the input after the nth
+// field separator '\t'.
+func SkipNFields(input []byte, n int) (rest []byte) {
+	for ; n > 0; n-- {
+		i := bytes.IndexByte(input, fieldSeparator)
+		if i == -1 {
+			return nil
+		}
+		input = input[i+1:]
 	}
-	label := c.line[c.pos : c.pos+i]
-	c.pos += i + 1
-	return label
+	return input
 }
 
-// UnescapedValue returns the unescaped value after the current position.
-func (c *Cutter) UnescapedValue() []byte {
-	return UnescapeValue(c.RawValue())
-}
-
-// UnescapedValue returns the raw value (which may be escaped) after the current position.
-func (c *Cutter) RawValue() []byte {
-	i := bytes.IndexByte(c.line[c.pos:], '\t')
-	var rawValue []byte
+// CutLabel cuts a label from the beginning of the input and returns the label
+// and the rest after the label separator ':'.
+func CutLabel(input []byte) (label, rest []byte) {
+	i := bytes.IndexByte(input, labelSeparator)
 	if i == -1 {
-		rawValue = c.line[c.pos:]
-		c.pos = len(c.line)
-	} else {
-		rawValue = c.line[c.pos : c.pos+i]
-		c.pos += i + 1
+		return nil, input
 	}
-	return rawValue
+	return input[:i], input[i+1:]
 }
 
-// UnescapeValue unescaped a raw value which may be escaped.
+// CutRawValue cuts a raw (escaped) value from the beginning of the input and
+// returns the raw value and the rest after the field separator '\t'.
+func CutRawValue(input []byte) (rawValue, rest []byte) {
+	i := bytes.IndexByte(input, fieldSeparator)
+	if i == -1 {
+		return input, nil
+	}
+	return input[:i], input[i+1:]
+}
+
+// UnescapeValue unescapes a raw value which may be escaped.
 // Supported escapes are:
 // \t -> tab, \n -> newline, \\ -> backslash.
+// It panics when invalid espapes are found.
 func UnescapeValue(rawValue []byte) []byte {
 	c := countEscape(rawValue)
 	if c == 0 {
