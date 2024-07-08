@@ -43,6 +43,63 @@ func CutRawValue(input []byte) (rawValue, rest []byte) {
 	return input[:i], input[i+1:]
 }
 
+// RawValueForLabel cuts a raw (escaped) value for the label in the input and
+// returns the raw value.
+//
+// It returns nil, false when the label is not found.
+func RawValueForLabel(input, label []byte) (rawValue []byte, found bool) {
+	rest := input
+	for {
+		i := bytes.IndexByte(rest, labelSeparator)
+		if i == -1 {
+			return nil, false
+		}
+
+		rawValue = rest[i+1:]
+		if bytes.Equal(rest[:i], label) {
+			if i := bytes.IndexByte(rawValue, fieldSeparator); i != -1 {
+				rawValue = rawValue[:i]
+			}
+			return rawValue, true
+		}
+
+		i = bytes.IndexByte(rawValue, fieldSeparator)
+		if i == -1 {
+			return nil, false
+		}
+		rest = rawValue[i+1:]
+	}
+
+}
+
+// ValueForLabel cuts and unescape a value for the label in the input and
+// returns the unescaped value.
+//
+// It returns nil, false when the label is not found.
+func ValueForLabel(input, label []byte) (value []byte, found bool) {
+	rest := input
+	for {
+		i := bytes.IndexByte(rest, labelSeparator)
+		if i == -1 {
+			return nil, false
+		}
+
+		rawValue := rest[i+1:]
+		if bytes.Equal(rest[:i], label) {
+			if i := bytes.IndexByte(rawValue, fieldSeparator); i != -1 {
+				rawValue = rawValue[:i]
+			}
+			return UnescapeValue(rawValue), true
+		}
+
+		i = bytes.IndexByte(rawValue, fieldSeparator)
+		if i == -1 {
+			return nil, false
+		}
+		rest = rawValue[i+1:]
+	}
+}
+
 // UnescapeValue unescapes a raw value which may be escaped.
 // Supported escapes are:
 // \t -> tab, \n -> newline, \\ -> backslash.
